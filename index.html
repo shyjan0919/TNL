@@ -168,7 +168,7 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
       <div style="border-top:1px solid #edf0f5;margin-top:12px;padding-top:15px;font-size:12px;color:#7b899c">New ROM or DOM? <button class="textbtn" id="showRegister" style="padding:0 3px">Request access</button></div>
     </div>
     <div id="registerPanel" class="hidden">
-      <h2>Employee Registration</h2><p class="sub">DOMs register first. ROM registration opens after at least one DOM is approved by ZOH.</p>
+      <h2>Employee Registration</h2><p class="sub">ROM registration is available after ZOH has approved and published the reporting DOM directory.</p>
       <label>Registration Type</label><select class="field" id="regRole"><option value="DOM">DOM Registration</option><option value="ROM" id="romRoleOption" disabled>ROM Registration · Available after DOM approval</option></select>
       <label>Employee Code</label><input class="field" id="regEmp" inputmode="numeric" autocomplete="off" placeholder="Enter employee code">
       <label>Employee Full Name</label><input class="field" id="regName" autocomplete="name" placeholder="Enter employee full name">
@@ -210,8 +210,8 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
         <article class="zoh-kpi"><span>▦</span><small>Total Branches</small><b>—</b></article>
         <article class="zoh-kpi gold-kpi"><span>◆</span><small>Gold Loan Branches</small><b>—</b></article>
         <article class="zoh-kpi"><span>▦</span><small>Non-Gold Branches</small><b>—</b></article>
-        <article class="zoh-kpi purple-kpi"><span>♧</span><small>Total DOM</small><b>—</b></article>
-        <article class="zoh-kpi"><span>✣</span><small>Total ROM</small><b>—</b></article>
+        <article class="zoh-kpi purple-kpi"><span>♧</span><small>Total DOM</small><b id="zohDomCount">—</b></article>
+        <article class="zoh-kpi"><span>✣</span><small>Total ROM</small><b id="zohRomCount">—</b></article>
         <article class="zoh-kpi gold-kpi"><span>♙</span><small>BOM</small><b>—</b></article>
         <article class="zoh-kpi green-kpi"><span>♟</span><small>TO</small><b>—</b></article>
         <article class="zoh-kpi purple-kpi"><span>♟</span><small>CSOV</small><b>—</b></article>
@@ -335,7 +335,7 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
     <button data-role-nav="more"><span>⊞</span>More</button>
   </nav>
   <section id="roleReportsScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2 id="roleReportsHeading">Reports</h2><p id="roleReportsSubheading">Reports within your authorised scope</p></div><button id="refreshRoleReports" class="zoh-iconbtn" aria-label="Refresh reports">↻</button></div><div id="roleReportList" class="zoh-report-list"><div class="zoh-report-empty">Loading reports…</div></div></section>
-  <section id="roleMoreScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2>My Workspace</h2><p>Employee and access information</p></div></div><div class="zoh-report-card"><h3 id="roleProfileName">—</h3><p id="roleProfileMeta">—</p><p id="roleProfileScope">—</p></div></section>
+  <section id="roleMoreScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2>My Workspace</h2><p>Employee and access information</p></div></div><div class="zoh-report-card"><h3 id="roleProfileName">—</h3><p id="roleProfileMeta">—</p><p id="roleProfileScope">—</p></div><section id="domRomApprovalSection" class="zoh-section hidden"><div class="zoh-report-head"><div><h2>ROM Registration Requests</h2><p>Approve or reject requests assigned to your division</p></div><button id="refreshDomRomRequests" class="zoh-iconbtn" aria-label="Refresh ROM requests">↻</button></div><div id="domRomRequestList" class="requestlist"><div class="empty">Loading requests…</div></div></section></section>
 
   <section id="sharedTasksPanel" class="report-panel hidden"><div class="zoh-report-head"><div><h2>Tasks & Follow-ups</h2><p id="sharedTaskSubtitle">Tasks assigned to your role</p></div><button id="refreshSharedTasks" class="zoh-iconbtn" aria-label="Refresh tasks">↻</button></div><div class="zoh-task-stats"><article><small>Tasks</small><b id="sharedTaskTotal">0</b></article><article><small>Pending</small><b id="sharedTaskPending">0</b></article><article><small>Completed</small><b id="sharedTaskCompleted">0</b></article></div><div id="sharedTaskList" class="zoh-task-list"><div class="zoh-task-empty">Loading tasks…</div></div></section>
   <section id="romReportPanel" class="report-panel hidden">
@@ -431,7 +431,7 @@ $("loginBtn").onclick=async()=>{
 };
 $("registerBtn").onclick=async()=>{
  clearNotice();
- const empCode=$("regEmp").value.trim(),contactName=$("regName").value.trim(),email=makeLoginId($("regEmp").value),mobile=$("regMobile").value.trim(),requestedRole=$("regRole").value,password=$("regPassword").value,confirmPassword=$("regConfirmPassword").value;
+ const empCode=$("regEmp").value.trim(),contactName=$("regName").value.trim(),email=makeLoginId(empCode),mobile=$("regMobile").value.trim(),requestedRole=$("regRole").value,password=$("regPassword").value,confirmPassword=$("regConfirmPassword").value;
  if(!/^[A-Za-z0-9_-]{3,20}$/.test(empCode)||!contactName||!/^[0-9]{10}$/.test(mobile))return notice("Enter a valid employee code, full name and 10-digit mobile number.","error");
  if(password.length<8)return notice("Password must contain at least 8 characters.","error");
  if(password!==confirmPassword)return notice("Password and confirm password do not match.","error");
@@ -452,7 +452,7 @@ $("registerBtn").onclick=async()=>{
   if(requestedRole==="DOM")Object.assign(requestData,{requestedDivisionName:divisionName,requestedDivisionId:divisionId});
   else Object.assign(requestData,{requestedDivisionName:divisionName,requestedDivisionId:divisionId,domUid,domEmpCode});
   await setDoc(doc(db,"registrationRequests",cred.user.uid),requestData);
-  await signOut(auth);$("registerPanel").classList.add("hidden");$("loginPanel").classList.remove("hidden");$("loginEmail").value=empCode;$("loginPassword").value="";notice(`Registration submitted for ${email}. Access remains pending until ZOH approval.`,"success");
+  await signOut(auth);$("registerPanel").classList.add("hidden");$("loginPanel").classList.remove("hidden");$("loginEmail").value=empCode;$("loginPassword").value="";notice(requestedRole==="DOM"?`DOM registration submitted for ${email}. Your request is pending ZOH approval.`:`ROM registration submitted for ${email}. Your request has been sent to the selected DOM for approval.`,"success");
  }catch(e){notice(friendly(e),"error");}
  finally{setBusy("registerBtn",false);}
 };
@@ -463,12 +463,15 @@ function friendly(e){
  return m[e.code]||e.message||"Something went wrong. Please try again.";
 }
 async function loadPending(){
- const host=$("pendingList");host.innerHTML='<div class="empty">Loading…</div>';
+ const host=$(signedInProfile?.role==="DOM"?"domRomRequestList":"pendingList");if(!host)return;host.innerHTML='<div class="empty">Loading…</div>';
  try{
-  const snap=await getDocs(collection(db,"registrationRequests"));
-  const rows=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.status==="PENDING").sort((a,b)=>String(a.requestedRole).localeCompare(String(b.requestedRole)));
-  if(!rows.length){host.innerHTML='<div class="empty">No pending registrations. DOM requests will appear first; ROM requests can be submitted after DOM approval.</div>';return;}
-  host.innerHTML=rows.map(r=>`<article class="requestcard" data-uid="${escapeHtml(r.uid||r.id)}"><div class="requesttop"><div><strong>${escapeHtml(r.displayName||"Unnamed employee")}</strong><div class="requestmeta">Employee ID: ${escapeHtml(r.empCode||"—")}<br>Login ID: ${escapeHtml(r.email||makeLoginId(r.empCode))}<br>Mobile: ${escapeHtml(r.mobile||"—")}${r.requestedRole==="DOM"?`<br>Requested Division: ${escapeHtml(r.requestedDivisionName||"—")}`:`<br>Division: ${escapeHtml(r.requestedDivisionName||"—")}<br>Selected DOM: ${escapeHtml(r.domEmpCode||"—")}`}</div></div><span class="badge">${escapeHtml(r.requestedRole||"ROLE")}</span></div><div class="actionrow"><button class="approve" data-action="approve">Approve</button><button class="reject" data-action="reject">Reject</button></div></article>`).join("");
+  let q;
+  if(signedInProfile?.role==="DOM") q=query(collection(db,"registrationRequests"),where("requestedRole","==","ROM"),where("domUid","==",auth.currentUser.uid),where("status","==","PENDING"));
+  else q=query(collection(db,"registrationRequests"),where("requestedRole","==","DOM"),where("status","==","PENDING"));
+  const snap=await getDocs(q);
+  const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.displayName||"").localeCompare(String(b.displayName||"")));
+  if(!rows.length){host.innerHTML=`<div class="empty">${signedInProfile?.role==="DOM"?"No pending ROM registration requests for your division.":"No pending DOM registration requests."}</div>`;return;}
+  host.innerHTML=rows.map(r=>`<article class="requestcard" data-uid="${escapeHtml(r.uid||r.id)}"><div class="requesttop"><div><strong>${escapeHtml(r.displayName||"Unnamed employee")}</strong><div class="requestmeta">Employee ID: ${escapeHtml(r.empCode||"—")}<br>Login ID: ${escapeHtml(r.email||makeLoginId(r.empCode))}<br>Mobile: ${escapeHtml(r.mobile||"—")}${r.requestedRole==="DOM"?`<br>Requested Division: ${escapeHtml(r.requestedDivisionName||"—")}`:`<br>Division: ${escapeHtml(r.requestedDivisionName||"—")}<br>Reporting DOM: ${escapeHtml(r.domEmpCode||"—")}`}</div></div><span class="badge">${escapeHtml(r.requestedRole||"ROLE")}</span></div><div class="actionrow"><button class="approve" data-action="approve">Approve</button><button class="reject" data-action="reject">Reject</button></div></article>`).join("");
   host.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>handleRequest(btn)));
  }catch(e){host.innerHTML=`<div class="empty">Could not load requests: ${escapeHtml(friendly(e))}</div>`;}
 }
@@ -478,7 +481,10 @@ async function handleRequest(btn){
  try{
   btn.disabled=true;
   const reqSnap=await getDoc(doc(db,"registrationRequests",uid));if(!reqSnap.exists())throw new Error("Registration request no longer exists.");
-  const req=reqSnap.data();const requestRef=doc(db,"registrationRequests",uid),auditRef=doc(collection(db,"auditLogs"));
+  const req=reqSnap.data();const actor=signedInProfile;const isZoh=actor?.role==="ZOH",isDom=actor?.role==="DOM";
+  if(!isZoh&&!(isDom&&req.requestedRole==="ROM"&&req.domUid===auth.currentUser.uid&&req.requestedDivisionId===actor.divisionId))throw new Error("You are not authorised to review this registration request.");
+  if(isZoh&&req.requestedRole!=="DOM")throw new Error("ZOH can review DOM registration requests only. ROM requests go to the selected DOM.");
+  const requestRef=doc(db,"registrationRequests",uid),auditRef=doc(collection(db,"auditLogs"));
   const batch=writeBatch(db);
   if(action==="approve"){
    const role=req.requestedRole,profile={empCode:String(req.empCode),displayName:String(req.displayName),contactName:String(req.contactName||req.displayName),email:String(req.email||makeLoginId(req.empCode)),mobile:String(req.mobile),role,active:true,createdAt:serverTimestamp(),approvedAt:serverTimestamp(),approvedBy:auth.currentUser.uid};
@@ -503,16 +509,44 @@ async function handleRequest(btn){
    batch.set(auditRef,{action:"REGISTRATION_APPROVED",targetUid:uid,targetEmpCode:req.empCode,targetRole:role,divisionId:profile.divisionId,domEmpCode:profile.domEmpCode||null,actorUid:auth.currentUser.uid,createdAt:serverTimestamp()});
   }else{
    batch.update(requestRef,{status:"REJECTED",reviewedAt:serverTimestamp(),reviewedBy:auth.currentUser.uid});
-   batch.set(auditRef,{action:"REGISTRATION_REJECTED",targetUid:uid,targetEmpCode:req.empCode,targetRole:req.requestedRole,actorUid:auth.currentUser.uid,createdAt:serverTimestamp()});
+   batch.set(auditRef,{action:"REGISTRATION_REJECTED",targetUid:uid,targetEmpCode:req.empCode,targetRole:req.requestedRole,divisionId:String(req.requestedDivisionId||""),actorUid:auth.currentUser.uid,createdAt:serverTimestamp()});
   }
-  await batch.commit();await loadPending();await loadUsers();
+  await batch.commit();await loadPending();if(isZoh)await loadUsers();
  }catch(e){alert(friendly(e));btn.disabled=false;}
+}
+async function syncApprovedDomDirectory(rows){
+ // Migration helper: older approved DOM profiles may pre-date the public ROM registration directory.
+ // ZOH can safely publish only the minimum directory fields needed for ROM registration.
+ const activeDoms=rows.filter(u=>u.role==="DOM"&&u.active===true&&u.divisionId&&u.empCode);
+ for(let i=0;i<activeDoms.length;i+=400){
+  const batch=writeBatch(db);
+  activeDoms.slice(i,i+400).forEach(u=>batch.set(doc(db,"approvedDomDirectory",u.id),{
+   domUid:u.id,empCode:String(u.empCode),displayName:String(u.displayName||u.contactName||"DOM"),
+   divisionId:String(u.divisionId),divisionName:String(u.divisionName||u.divisionId),active:true,
+   syncedAt:serverTimestamp()
+  },{merge:true}));
+  await batch.commit();
+ }
 }
 async function loadUsers(){
  const host=$("usersList");
- try{const snap=await getDocs(collection(db,"users"));const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+ try{
+  // The ZOH network KPI must be derived from approved employee profiles,
+  // not from pending registration requests or the public DOM directory.
+  const snap=await getDocs(collection(db,"users"));
+  const rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const activeDoms=rows.filter(u=>u.role==="DOM"&&u.active===true);
+  const activeRoms=rows.filter(u=>u.role==="ROM"&&u.active===true);
+  if($("zohDomCount"))$("zohDomCount").textContent=activeDoms.length.toLocaleString("en-IN");
+  if($("zohRomCount"))$("zohRomCount").textContent=activeRoms.length.toLocaleString("en-IN");
+  if($("dashUpdated"))$("dashUpdated").textContent=`Live data updated ${new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}`;
+  await syncApprovedDomDirectory(rows);
   host.innerHTML=rows.length?rows.map(u=>`<article class="requestcard"><div class="requesttop"><div><strong>${escapeHtml(u.displayName||"Employee")}</strong><div class="requestmeta">${escapeHtml(u.empCode||"—")} · ${escapeHtml(u.email||"—")}<br>${escapeHtml(u.role||"—")} · ${escapeHtml(u.role==="ZOH"?"Tamil Nadu":u.role==="DOM"?(u.divisionName||u.divisionId||"Unassigned"):(u.regionName||u.regionId||"Unassigned"))}</div></div><span class="badge">${u.active===true?"ACTIVE":"INACTIVE"}</span></div></article>`).join(""):'<div class="empty">No employee profiles found.</div>';
- }catch(e){host.innerHTML=`<div class="empty">Could not load users: ${escapeHtml(friendly(e))}</div>`;}
+ }catch(e){
+  if($("zohDomCount"))$("zohDomCount").textContent="!";
+  if($("zohDomCount"))$("zohDomCount").title=friendly(e);
+  host.innerHTML=`<div class="empty">Could not load users / sync approved DOM directory: ${escapeHtml(friendly(e))}</div>`;
+ }
 }
 $("pendingTab").onclick=()=>{$("pendingTab").classList.add("active");$("usersTab").classList.remove("active");$("pendingList").classList.remove("panelhidden");$("usersList").classList.add("panelhidden");$("adminTitle").textContent="REGISTRATION APPROVALS";};
 $("usersTab").onclick=()=>{$("usersTab").classList.add("active");$("pendingTab").classList.remove("active");$("usersList").classList.remove("panelhidden");$("pendingList").classList.add("panelhidden");$("adminTitle").textContent="ACTIVE EMPLOYEE PROFILES";};
@@ -646,7 +680,7 @@ onAuthStateChanged(auth,async user=>{
   if(!snap.exists()){
     const req=await getDoc(doc(db,"registrationRequests",user.uid));
     $("authView").classList.remove("hidden");$("dashboardView").classList.add("hidden");
-    if(req.exists())notice("Your registration is pending ZOH approval. Dashboard access is not active yet.","info");
+    if(req.exists()){const r=req.data();notice(r.status==="PENDING"?(r.requestedRole==="ROM"?"Your ROM registration is pending approval from the selected DOM.":"Your DOM registration is pending ZOH approval."):r.status==="REJECTED"?"Your registration request was rejected. Please contact the approving authority.":"Your registration is awaiting activation.","info");}
     else notice("Your account has no approved employee profile. Contact the ZOH administrator.","error");
     return;
   }
@@ -665,6 +699,7 @@ onAuthStateChanged(auth,async user=>{
   } else {
     $("zohDashboard").classList.add("hidden");$("zohAdmin").classList.add("hidden");$("zohMainNav").classList.add("hidden");$("zohReportsScreen").classList.add("hidden");$("zohTasksScreen").classList.add("hidden");$("nonZohWorkspace").classList.add("hidden");$("nonZohMessage").classList.add("hidden");$("roleMainNav").classList.remove("hidden");$("roleDashboard").classList.remove("hidden");
     $("romReportPanel").classList.add("hidden");$("romHistoryPanel").classList.add("hidden");$("sharedTasksPanel").classList.add("hidden");$("roleReportsScreen").classList.add("hidden");$("roleMoreScreen").classList.add("hidden");
+    $("domRomApprovalSection").classList.toggle("hidden",p.role!=="DOM");
     if(p.role==="ROM"){$("roleSubmitNav").classList.remove("hidden");$("romScopeLabel").textContent=`${p.regionName||p.regionId||p.empCode||"Region"} · ${p.divisionName||p.divisionId||"Division not assigned"}`;$ ("rDate").value ||= new Date().toISOString().slice(0,10);}
     else {$ ("roleSubmitNav").classList.add("hidden");}
     await loadRoleWorkspace();showRoleScreen('dashboard');
@@ -679,7 +714,7 @@ function latestPerRegion(rows){const m=new Map();rows.slice().sort((a,b)=>String
 function renderRoleReports(rows){const host=$('roleReportList');if(!rows.length){host.innerHTML='<div class="zoh-report-empty">No reports found in your authorised scope.</div>';return;}host.innerHTML=rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(r=>`<article class="zoh-report-card"><div class="zoh-report-card-top"><div><h3>${escapeHtml(r.regionName||r.regionId||'Region')}</h3><small>${escapeHtml(r.date||'—')} · ${escapeHtml(r.divisionName||r.divisionId||'Division')} · ROM ${escapeHtml(r.romEmpCode||'—')}</small></div><span class="zoh-report-status">${escapeHtml(r.status||'SUBMITTED')}</span></div><div class="zoh-report-values"><div><small>Gold Loan achieved</small><b>${moneyFmt(r.goldLoanAchieved)}</b></div><div><small>ELA achieved</small><b>${Number(r.elaAchieved||0).toLocaleString('en-IN')}</b></div><div><small>Insurance achieved</small><b>${Number(r.insuranceAchieved||0).toLocaleString('en-IN')}</b></div><div><small>FD achieved</small><b>${moneyFmt(r.fdAchieved)}</b></div><div><small>Gold Loan book</small><b>${moneyFmt(r.goldLoanBook)}</b></div><div><small>MFI book</small><b>${moneyFmt(r.mfiBook)}</b></div><div><small>Calling</small><b>${Number(r.callingTotal||0).toLocaleString('en-IN')}</b></div></div></article>`).join('');}
 async function loadRoleWorkspace(){const p=signedInProfile;if(!p||!['DOM','ROM'].includes(p.role))return;const label=p.role==='DOM'?'DIVISION WORKSPACE':'REGIONAL WORKSPACE';$('roleWorkspaceLabel').textContent=label;$('roleScopeBadge').textContent=p.role==='DOM'?(p.divisionName||p.divisionId||'Division'):(p.regionName||p.regionId||'Region');$('roleOverviewTitle').textContent=p.role==='DOM'?'Division Overview':'Regional Overview';$('roleOverviewCaption').textContent=p.role==='DOM'?'Division-wide live reporting snapshot':'Your region · live reporting snapshot';$('roleUnitLabel').textContent=p.role==='DOM'?'Reporting Regions':'Reporting Days';$('roleRecentTitle').textContent=p.role==='DOM'?'ROM-wise Latest Reports':'Your Latest Reports';$('roleReportsHeading').textContent=p.role==='DOM'?'Division Reports':'Regional Reports';$('roleReportsSubheading').textContent=p.role==='DOM'?'Reports submitted by ROMs in your division':'Reports submitted for your assigned region';$('roleProfileName').textContent=p.displayName||'Employee';$('roleProfileMeta').textContent=`${p.role} · ${p.empCode||'—'}`;$('roleProfileScope').textContent=p.role==='DOM'?(p.divisionName||p.divisionId||'Division'):(p.regionName||p.regionId||'Region');$('roleSubmitNav').classList.toggle('hidden',p.role!=='ROM');try{const q=p.role==='DOM'?query(collection(db,'dailyReports'),where('divisionId','==',String(p.divisionId))):query(collection(db,'dailyReports'),where('regionId','==',String(p.regionId)));const snap=await getDocs(q);roleReportCache=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));const latest=p.role==='DOM'?latestPerRegion(roleReportCache):roleReportCache.slice(0,1);const sum=(key)=>latest.reduce((n,r)=>n+Number(r[key]||0),0);$('roleReportCount').textContent=roleReportCache.length.toLocaleString('en-IN');$('roleUnitCount').textContent=(p.role==='DOM'?new Set(roleReportCache.map(r=>r.regionId).filter(Boolean)).size:new Set(roleReportCache.map(r=>r.date).filter(Boolean)).size).toLocaleString('en-IN');$('roleGoldBook').textContent=moneyFmt(sum('goldLoanBook'));$('roleMfiBook').textContent=moneyFmt(sum('mfiBook'));$('roleGoldAchieved').textContent=moneyFmt(sum('goldLoanAchieved'));$('roleElaAchieved').textContent=sum('elaAchieved').toLocaleString('en-IN');$('roleInsuranceAchieved').textContent=sum('insuranceAchieved').toLocaleString('en-IN');$('roleFdAchieved').textContent=moneyFmt(sum('fdAchieved'));$('roleCallingTotal').textContent=sum('callingTotal').toLocaleString('en-IN');$('roleCallingInterested').textContent=sum('callingInterested').toLocaleString('en-IN');$('roleCallingNotInterested').textContent=sum('callingNotInterested').toLocaleString('en-IN');$('roleCallingOthers').textContent=sum('callingOthers').toLocaleString('en-IN');renderRoleReports(roleReportCache);const recent=p.role==='DOM'?latest:roleReportCache.slice(0,3);const old=$('roleRecentReports');if(!recent.length)old.innerHTML='<div class="zoh-report-empty">No reports received yet.</div>';else old.innerHTML=recent.slice(0,4).map(r=>`<article class="zoh-report-card"><div class="zoh-report-card-top"><div><h3>${escapeHtml(r.regionName||r.regionId||'Region')}</h3><small>${escapeHtml(r.date||'—')} · ROM ${escapeHtml(r.romEmpCode||'—')}</small></div><span class="zoh-report-status">${escapeHtml(r.status||'SUBMITTED')}</span></div><div class="zoh-report-values"><div><small>Gold Loan</small><b>${moneyFmt(r.goldLoanAchieved)}</b></div><div><small>ELA</small><b>${Number(r.elaAchieved||0).toLocaleString('en-IN')}</b></div></div></article>`).join('');}catch(e){$('roleRecentReports').innerHTML=`<div class="zoh-report-empty">Unable to load dashboard data: ${escapeHtml(friendly(e))}</div>`;}}
 function showRoleScreen(name){['roleDashboard','roleReportsScreen','roleMoreScreen','sharedTasksPanel','romReportPanel','romHistoryPanel'].forEach(id=>$(id)?.classList.add('hidden'));if(name==='dashboard')$('roleDashboard').classList.remove('hidden');else if(name==='reports')$('roleReportsScreen').classList.remove('hidden');else if(name==='tasks')$('sharedTasksPanel').classList.remove('hidden');else if(name==='submit'){$('romReportPanel').classList.remove('hidden');$('romHistoryPanel').classList.remove('hidden');}else $('roleMoreScreen').classList.remove('hidden');document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.classList.toggle('active',b.dataset.roleNav===name));}
-document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.addEventListener('click',async()=>{const n=b.dataset.roleNav;showRoleScreen(n);if(n==='tasks'){await loadTaskColumns();await loadSharedTasks();}if(n==='reports')renderRoleReports(roleReportCache);if(n==='submit')await loadRomHistory();}));$('refreshRoleReports').onclick=async()=>{await loadRoleWorkspace();renderRoleReports(roleReportCache);};$('refreshSharedTasks').onclick=loadSharedTasks;
+document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.addEventListener('click',async()=>{const n=b.dataset.roleNav;showRoleScreen(n);if(n==='tasks'){await loadTaskColumns();await loadSharedTasks();}if(n==='reports')renderRoleReports(roleReportCache);if(n==='submit')await loadRomHistory();if(n==='more'&&signedInProfile?.role==='DOM')await loadPending();}));$('refreshRoleReports').onclick=async()=>{await loadRoleWorkspace();renderRoleReports(roleReportCache);};$('refreshSharedTasks').onclick=loadSharedTasks;$('refreshDomRomRequests')?.addEventListener('click',loadPending);
 
 </script>
 <script>
