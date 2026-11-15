@@ -326,6 +326,7 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
       <div class="calling-grid"><div class="calling-total"><small>Total Calling</small><b id="roleCallingTotal">0</b></div><div class="calling-stat"><label>Interested</label><b id="roleCallingInterested">0</b></div><div class="calling-stat"><label>Not Interested</label><b id="roleCallingNotInterested">0</b></div><div class="calling-stat"><label>Others</label><b id="roleCallingOthers">0</b></div></div>
     </section>
     <section class="zoh-section"><div class="zoh-section-title"><span>▥</span><span id="roleRecentTitle">Recent Reports</span><small>Latest submissions</small></div><div id="roleRecentReports" class="zoh-report-list"><div class="zoh-report-empty">Loading reports…</div></div></section>
+    <section id="domDashboardApprovalSection" class="zoh-section hidden"><div class="zoh-report-head"><div><h2>ROM Registration Requests <span id="domPendingRequestCount" class="zoh-scope-badge">0 pending</span></h2><p>Requests assigned to you for approval</p></div><button id="refreshDomDashboardRequests" class="zoh-iconbtn" aria-label="Refresh ROM registration requests">↻</button></div><div id="domDashboardRequestList" class="requestlist"><div class="empty">Loading ROM registration requests…</div></div></section>
   </section>
   <nav id="roleMainNav" class="zoh-bottom-nav hidden" aria-label="Role navigation">
     <button class="active" data-role-nav="dashboard"><span>⌂</span>Dashboard</button>
@@ -335,7 +336,7 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
     <button data-role-nav="more"><span>⊞</span>More</button>
   </nav>
   <section id="roleReportsScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2 id="roleReportsHeading">Reports</h2><p id="roleReportsSubheading">Reports within your authorised scope</p></div><button id="refreshRoleReports" class="zoh-iconbtn" aria-label="Refresh reports">↻</button></div><div id="roleReportList" class="zoh-report-list"><div class="zoh-report-empty">Loading reports…</div></div></section>
-  <section id="roleMoreScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2>My Workspace</h2><p>Employee and access information</p></div></div><div class="zoh-report-card"><h3 id="roleProfileName">—</h3><p id="roleProfileMeta">—</p><p id="roleProfileScope">—</p></div><section id="domRomApprovalSection" class="zoh-section hidden"><div class="zoh-report-head"><div><h2>ROM Registration Requests</h2><p>Approve or reject requests assigned to your division</p></div><button id="refreshDomRomRequests" class="zoh-iconbtn" aria-label="Refresh ROM requests">↻</button></div><div id="domRomRequestList" class="requestlist"><div class="empty">Loading requests…</div></div></section></section>
+  <section id="roleMoreScreen" class="hidden zoh-report-screen"><div class="zoh-report-head"><div><h2>My Workspace</h2><p>Employee and access information</p></div></div><div class="zoh-report-card"><h3 id="roleProfileName">—</h3><p id="roleProfileMeta">—</p><p id="roleProfileScope">—</p></div></section>
 
   <section id="sharedTasksPanel" class="report-panel hidden"><div class="zoh-report-head"><div><h2>Tasks & Follow-ups</h2><p id="sharedTaskSubtitle">Tasks assigned to your role</p></div><button id="refreshSharedTasks" class="zoh-iconbtn" aria-label="Refresh tasks">↻</button></div><div class="zoh-task-stats"><article><small>Tasks</small><b id="sharedTaskTotal">0</b></article><article><small>Pending</small><b id="sharedTaskPending">0</b></article><article><small>Completed</small><b id="sharedTaskCompleted">0</b></article></div><div id="sharedTaskList" class="zoh-task-list"><div class="zoh-task-empty">Loading tasks…</div></div></section>
   <section id="romReportPanel" class="report-panel hidden">
@@ -373,6 +374,7 @@ body.zoh-mode{min-height:100dvh;padding:0 0 env(safe-area-inset-bottom);overscro
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, writeBatch, query, where, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDvEbw1AQdoP_lMx5-wF73j0AaTznA6yIo",
@@ -382,7 +384,8 @@ const firebaseConfig = {
   messagingSenderId: "615565100606",
   appId: "1:615565100606:web:c3c459e45d37150a0c736f"
 };
-const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), functions=getFunctions(app, "asia-south1");
+const rejectRegistrationCallable=httpsCallable(functions,"rejectRegistration");
 let signedInProfile=null;
 const $=id=>document.getElementById(id);
 function notice(text,type="info"){const n=$("message");n.textContent=text;n.className=`notice show ${type}`;}
@@ -459,21 +462,24 @@ $("registerBtn").onclick=async()=>{
 $("logoutBtn").onclick=()=>signOut(auth);
 $("zohLogoutBtn").onclick=()=>signOut(auth);
 function friendly(e){
- const m={ "auth/email-already-in-use":"This email already has an account.","auth/invalid-email":"Enter a valid email address.","auth/weak-password":"Choose a stronger password (at least 8 characters).","auth/invalid-credential":"Email or password is incorrect.","auth/too-many-requests":"Too many attempts. Please wait and try again.","permission-denied":"The request was blocked by database security rules. Check that the Phase 1 rules have been published."};
+ const m={ "auth/email-already-in-use":"This email already has an account.","auth/invalid-email":"Enter a valid email address.","auth/weak-password":"Choose a stronger password (at least 8 characters).","auth/invalid-credential":"Email or password is incorrect.","auth/too-many-requests":"Too many attempts. Please wait and try again.","permission-denied":"The request was blocked by database security rules. Check that the Phase 1 rules have been published.","functions/not-found":"The rejection service is not deployed yet. Ask the administrator to deploy Firebase Functions.","functions/failed-precondition":"This registration cannot be rejected in its current status.","functions/unauthenticated":"Please sign in again and retry."};
  return m[e.code]||e.message||"Something went wrong. Please try again.";
 }
 async function loadPending(){
- const host=$(signedInProfile?.role==="DOM"?"domRomRequestList":"pendingList");if(!host)return;host.innerHTML='<div class="empty">Loading…</div>';
+ const isDom=signedInProfile?.role==="DOM";
+ const host=$(isDom?"domDashboardRequestList":"pendingList");if(!host)return;
+ host.innerHTML='<div class="empty">Loading…</div>';
  try{
   let q;
-  if(signedInProfile?.role==="DOM") q=query(collection(db,"registrationRequests"),where("requestedRole","==","ROM"),where("domUid","==",auth.currentUser.uid),where("status","==","PENDING"));
+  if(isDom) q=query(collection(db,"registrationRequests"),where("requestedRole","==","ROM"),where("domUid","==",auth.currentUser.uid),where("requestedDivisionId","==",String(signedInProfile.divisionId)),where("status","==","PENDING"));
   else q=query(collection(db,"registrationRequests"),where("requestedRole","==","DOM"),where("status","==","PENDING"));
   const snap=await getDocs(q);
   const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.displayName||"").localeCompare(String(b.displayName||"")));
-  if(!rows.length){host.innerHTML=`<div class="empty">${signedInProfile?.role==="DOM"?"No pending ROM registration requests for your division.":"No pending DOM registration requests."}</div>`;return;}
+  if(isDom&&$("domPendingRequestCount"))$("domPendingRequestCount").textContent=`${rows.length} pending`;
+  if(!rows.length){host.innerHTML=`<div class="empty">${isDom?"No pending ROM registration requests assigned to you.":"No pending DOM registration requests."}</div>`;return;}
   host.innerHTML=rows.map(r=>`<article class="requestcard" data-uid="${escapeHtml(r.uid||r.id)}"><div class="requesttop"><div><strong>${escapeHtml(r.displayName||"Unnamed employee")}</strong><div class="requestmeta">Employee ID: ${escapeHtml(r.empCode||"—")}<br>Login ID: ${escapeHtml(r.email||makeLoginId(r.empCode))}<br>Mobile: ${escapeHtml(r.mobile||"—")}${r.requestedRole==="DOM"?`<br>Requested Division: ${escapeHtml(r.requestedDivisionName||"—")}`:`<br>Division: ${escapeHtml(r.requestedDivisionName||"—")}<br>Reporting DOM: ${escapeHtml(r.domEmpCode||"—")}`}</div></div><span class="badge">${escapeHtml(r.requestedRole||"ROLE")}</span></div><div class="actionrow"><button class="approve" data-action="approve">Approve</button><button class="reject" data-action="reject">Reject</button></div></article>`).join("");
   host.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>handleRequest(btn)));
- }catch(e){host.innerHTML=`<div class="empty">Could not load requests: ${escapeHtml(friendly(e))}</div>`;}
+ }catch(e){host.innerHTML=`<div class="empty">Could not load requests: ${escapeHtml(friendly(e))}. Check Firestore permissions and the required registrationRequests index.</div>`;}
 }
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function handleRequest(btn){
@@ -508,8 +514,12 @@ async function handleRequest(btn){
    batch.update(requestRef,{status:"APPROVED",reviewedAt:serverTimestamp(),reviewedBy:auth.currentUser.uid});
    batch.set(auditRef,{action:"REGISTRATION_APPROVED",targetUid:uid,targetEmpCode:req.empCode,targetRole:role,divisionId:profile.divisionId,domEmpCode:profile.domEmpCode||null,actorUid:auth.currentUser.uid,createdAt:serverTimestamp()});
   }else{
-   batch.update(requestRef,{status:"REJECTED",reviewedAt:serverTimestamp(),reviewedBy:auth.currentUser.uid});
-   batch.set(auditRef,{action:"REGISTRATION_REJECTED",targetUid:uid,targetEmpCode:req.empCode,targetRole:req.requestedRole,divisionId:String(req.requestedDivisionId||""),actorUid:auth.currentUser.uid,createdAt:serverTimestamp()});
+   // Rejection must also remove the pending Firebase Authentication account.
+   // A trusted callable Cloud Function performs deletion with Admin SDK.
+   await rejectRegistrationCallable({requestUid:uid});
+   await loadPending();
+   if(isZoh)await loadUsers();
+   return;
   }
   await batch.commit();await loadPending();if(isZoh)await loadUsers();
  }catch(e){alert(friendly(e));btn.disabled=false;}
@@ -699,10 +709,10 @@ onAuthStateChanged(auth,async user=>{
   } else {
     $("zohDashboard").classList.add("hidden");$("zohAdmin").classList.add("hidden");$("zohMainNav").classList.add("hidden");$("zohReportsScreen").classList.add("hidden");$("zohTasksScreen").classList.add("hidden");$("nonZohWorkspace").classList.add("hidden");$("nonZohMessage").classList.add("hidden");$("roleMainNav").classList.remove("hidden");$("roleDashboard").classList.remove("hidden");
     $("romReportPanel").classList.add("hidden");$("romHistoryPanel").classList.add("hidden");$("sharedTasksPanel").classList.add("hidden");$("roleReportsScreen").classList.add("hidden");$("roleMoreScreen").classList.add("hidden");
-    $("domRomApprovalSection").classList.toggle("hidden",p.role!=="DOM");
+    $("domDashboardApprovalSection").classList.toggle("hidden",p.role!=="DOM");
     if(p.role==="ROM"){$("roleSubmitNav").classList.remove("hidden");$("romScopeLabel").textContent=`${p.regionName||p.regionId||p.empCode||"Region"} · ${p.divisionName||p.divisionId||"Division not assigned"}`;$ ("rDate").value ||= new Date().toISOString().slice(0,10);}
     else {$ ("roleSubmitNav").classList.add("hidden");}
-    await loadRoleWorkspace();showRoleScreen('dashboard');
+    await loadRoleWorkspace();showRoleScreen('dashboard');if(p.role==="DOM")await loadPending();
   }
  }catch(e){document.body.classList.remove("zoh-mode");$("authView").classList.remove("hidden");$("dashboardView").classList.add("hidden");notice(friendly(e),"error");}
 });
@@ -714,7 +724,7 @@ function latestPerRegion(rows){const m=new Map();rows.slice().sort((a,b)=>String
 function renderRoleReports(rows){const host=$('roleReportList');if(!rows.length){host.innerHTML='<div class="zoh-report-empty">No reports found in your authorised scope.</div>';return;}host.innerHTML=rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(r=>`<article class="zoh-report-card"><div class="zoh-report-card-top"><div><h3>${escapeHtml(r.regionName||r.regionId||'Region')}</h3><small>${escapeHtml(r.date||'—')} · ${escapeHtml(r.divisionName||r.divisionId||'Division')} · ROM ${escapeHtml(r.romEmpCode||'—')}</small></div><span class="zoh-report-status">${escapeHtml(r.status||'SUBMITTED')}</span></div><div class="zoh-report-values"><div><small>Gold Loan achieved</small><b>${moneyFmt(r.goldLoanAchieved)}</b></div><div><small>ELA achieved</small><b>${Number(r.elaAchieved||0).toLocaleString('en-IN')}</b></div><div><small>Insurance achieved</small><b>${Number(r.insuranceAchieved||0).toLocaleString('en-IN')}</b></div><div><small>FD achieved</small><b>${moneyFmt(r.fdAchieved)}</b></div><div><small>Gold Loan book</small><b>${moneyFmt(r.goldLoanBook)}</b></div><div><small>MFI book</small><b>${moneyFmt(r.mfiBook)}</b></div><div><small>Calling</small><b>${Number(r.callingTotal||0).toLocaleString('en-IN')}</b></div></div></article>`).join('');}
 async function loadRoleWorkspace(){const p=signedInProfile;if(!p||!['DOM','ROM'].includes(p.role))return;const label=p.role==='DOM'?'DIVISION WORKSPACE':'REGIONAL WORKSPACE';$('roleWorkspaceLabel').textContent=label;$('roleScopeBadge').textContent=p.role==='DOM'?(p.divisionName||p.divisionId||'Division'):(p.regionName||p.regionId||'Region');$('roleOverviewTitle').textContent=p.role==='DOM'?'Division Overview':'Regional Overview';$('roleOverviewCaption').textContent=p.role==='DOM'?'Division-wide live reporting snapshot':'Your region · live reporting snapshot';$('roleUnitLabel').textContent=p.role==='DOM'?'Reporting Regions':'Reporting Days';$('roleRecentTitle').textContent=p.role==='DOM'?'ROM-wise Latest Reports':'Your Latest Reports';$('roleReportsHeading').textContent=p.role==='DOM'?'Division Reports':'Regional Reports';$('roleReportsSubheading').textContent=p.role==='DOM'?'Reports submitted by ROMs in your division':'Reports submitted for your assigned region';$('roleProfileName').textContent=p.displayName||'Employee';$('roleProfileMeta').textContent=`${p.role} · ${p.empCode||'—'}`;$('roleProfileScope').textContent=p.role==='DOM'?(p.divisionName||p.divisionId||'Division'):(p.regionName||p.regionId||'Region');$('roleSubmitNav').classList.toggle('hidden',p.role!=='ROM');try{const q=p.role==='DOM'?query(collection(db,'dailyReports'),where('divisionId','==',String(p.divisionId))):query(collection(db,'dailyReports'),where('regionId','==',String(p.regionId)));const snap=await getDocs(q);roleReportCache=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));const latest=p.role==='DOM'?latestPerRegion(roleReportCache):roleReportCache.slice(0,1);const sum=(key)=>latest.reduce((n,r)=>n+Number(r[key]||0),0);$('roleReportCount').textContent=roleReportCache.length.toLocaleString('en-IN');$('roleUnitCount').textContent=(p.role==='DOM'?new Set(roleReportCache.map(r=>r.regionId).filter(Boolean)).size:new Set(roleReportCache.map(r=>r.date).filter(Boolean)).size).toLocaleString('en-IN');$('roleGoldBook').textContent=moneyFmt(sum('goldLoanBook'));$('roleMfiBook').textContent=moneyFmt(sum('mfiBook'));$('roleGoldAchieved').textContent=moneyFmt(sum('goldLoanAchieved'));$('roleElaAchieved').textContent=sum('elaAchieved').toLocaleString('en-IN');$('roleInsuranceAchieved').textContent=sum('insuranceAchieved').toLocaleString('en-IN');$('roleFdAchieved').textContent=moneyFmt(sum('fdAchieved'));$('roleCallingTotal').textContent=sum('callingTotal').toLocaleString('en-IN');$('roleCallingInterested').textContent=sum('callingInterested').toLocaleString('en-IN');$('roleCallingNotInterested').textContent=sum('callingNotInterested').toLocaleString('en-IN');$('roleCallingOthers').textContent=sum('callingOthers').toLocaleString('en-IN');renderRoleReports(roleReportCache);const recent=p.role==='DOM'?latest:roleReportCache.slice(0,3);const old=$('roleRecentReports');if(!recent.length)old.innerHTML='<div class="zoh-report-empty">No reports received yet.</div>';else old.innerHTML=recent.slice(0,4).map(r=>`<article class="zoh-report-card"><div class="zoh-report-card-top"><div><h3>${escapeHtml(r.regionName||r.regionId||'Region')}</h3><small>${escapeHtml(r.date||'—')} · ROM ${escapeHtml(r.romEmpCode||'—')}</small></div><span class="zoh-report-status">${escapeHtml(r.status||'SUBMITTED')}</span></div><div class="zoh-report-values"><div><small>Gold Loan</small><b>${moneyFmt(r.goldLoanAchieved)}</b></div><div><small>ELA</small><b>${Number(r.elaAchieved||0).toLocaleString('en-IN')}</b></div></div></article>`).join('');}catch(e){$('roleRecentReports').innerHTML=`<div class="zoh-report-empty">Unable to load dashboard data: ${escapeHtml(friendly(e))}</div>`;}}
 function showRoleScreen(name){['roleDashboard','roleReportsScreen','roleMoreScreen','sharedTasksPanel','romReportPanel','romHistoryPanel'].forEach(id=>$(id)?.classList.add('hidden'));if(name==='dashboard')$('roleDashboard').classList.remove('hidden');else if(name==='reports')$('roleReportsScreen').classList.remove('hidden');else if(name==='tasks')$('sharedTasksPanel').classList.remove('hidden');else if(name==='submit'){$('romReportPanel').classList.remove('hidden');$('romHistoryPanel').classList.remove('hidden');}else $('roleMoreScreen').classList.remove('hidden');document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.classList.toggle('active',b.dataset.roleNav===name));}
-document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.addEventListener('click',async()=>{const n=b.dataset.roleNav;showRoleScreen(n);if(n==='tasks'){await loadTaskColumns();await loadSharedTasks();}if(n==='reports')renderRoleReports(roleReportCache);if(n==='submit')await loadRomHistory();if(n==='more'&&signedInProfile?.role==='DOM')await loadPending();}));$('refreshRoleReports').onclick=async()=>{await loadRoleWorkspace();renderRoleReports(roleReportCache);};$('refreshSharedTasks').onclick=loadSharedTasks;$('refreshDomRomRequests')?.addEventListener('click',loadPending);
+document.querySelectorAll('#roleMainNav [data-role-nav]').forEach(b=>b.addEventListener('click',async()=>{const n=b.dataset.roleNav;showRoleScreen(n);if(n==='tasks'){await loadTaskColumns();await loadSharedTasks();}if(n==='reports')renderRoleReports(roleReportCache);if(n==='submit')await loadRomHistory();}));$('refreshRoleReports').onclick=async()=>{await loadRoleWorkspace();renderRoleReports(roleReportCache);};$('refreshSharedTasks').onclick=loadSharedTasks;$('refreshDomDashboardRequests')?.addEventListener('click',loadPending);
 
 </script>
 <script>
