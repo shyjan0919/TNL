@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "registrationRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "requestedRole", "order": "ASCENDING" },
+        { "fieldPath": "domUid", "order": "ASCENDING" },
+        { "fieldPath": "requestedDivisionId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
