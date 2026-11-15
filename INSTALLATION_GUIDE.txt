@@ -1,0 +1,46 @@
+TN STATE HUB – INSTALLABLE PWA REPAIR PACKAGE
+
+This package is configured for the GitHub Pages project URL:
+https://shyjan0919.github.io/TNL/
+
+UPLOAD
+1. Extract this ZIP on your computer.
+2. Open the extracted folder.
+3. Upload the CONTENTS directly to the root of the GitHub repository that publishes /TNL/.
+4. Do not upload the ZIP itself and do not create an extra nested folder.
+5. If GitHub asks whether to replace existing files, replace the matching app files. Keep the repository's other unrelated files.
+
+Expected published paths:
+ /TNL/index.html
+ /TNL/manifest.webmanifest
+ /TNL/service-worker.js
+ /TNL/icons/icon-192.png
+ /TNL/icons/icon-512.png
+ /TNL/icons/apple-touch-icon.png
+
+The index page now embeds the brand mark directly in the HTML header to prevent the broken header icon shown in the screenshot. The manifest still references the PNG icon files for installation.
+
+ANDROID (Chrome)
+1. Open https://shyjan0919.github.io/TNL/ in Chrome.
+2. Reload after GitHub Pages finishes publishing.
+3. Use Chrome menu > Install app (or Add to Home screen).
+4. The page also exposes an Install TN State HUB button when Chrome provides the install prompt.
+
+IPHONE (Safari)
+1. Open https://shyjan0919.github.io/TNL/ in Safari (not an in-app browser).
+2. Tap Share > Add to Home Screen > Add.
+3. iOS does not use the Android beforeinstallprompt button; the page shows the Safari installation instruction.
+
+VERIFY AFTER DEPLOYMENT
+Open each of these addresses in the browser. Each must load a real file, not a GitHub 404 page:
+https://shyjan0919.github.io/TNL/manifest.webmanifest
+https://shyjan0919.github.io/TNL/service-worker.js
+https://shyjan0919.github.io/TNL/icons/icon-192.png
+https://shyjan0919.github.io/TNL/icons/icon-512.png
+
+If the app was previously opened, clear cached site data for shyjan0919.github.io or unregister the old service worker, then reload the page. Remove any old Home Screen shortcut and install/add it again to refresh the icon.
+
+NOTES
+- Firebase authentication, approvals and live data require an internet connection.
+- The service worker caches the app shell only; it does not make Firebase data work offline.
+- Keep Firebase configuration and Firestore rules as supplied in the existing project.

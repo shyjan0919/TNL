@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function activeUser() { return hasProfile() && myProfile().active == true; }
+    function isZOH() { return activeUser() && myProfile().role == "ZOH"; }
+    function isDOM() { return activeUser() && myProfile().role == "DOM"; }
+    function isROM() { return activeUser() && myProfile().role == "ROM"; }
+    function validReportScope(data) {
+      return isROM()
+        && data.regionId == myProfile().regionId
+        && data.divisionId == myProfile().divisionId
+        && data.romUid == request.auth.uid;
+    }
+
+    match /registrationRequests/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == "PENDING"
+        && request.resource.data.requestedRole in ["DOM", "ROM"]
+        && request.resource.data.empCode is string
+        && request.resource.data.displayName is string
+        && request.resource.data.email is string
+        && request.resource.data.keys().hasOnly([
+          "uid", "empCode", "displayName", "contactName", "requestedDivisionName", "requestedDivisionId", "domUid", "domEmpCode", "email", "mobile", "requestedRole", "status", "createdAt"
+        ])
+        && (request.resource.data.requestedRole == "DOM"
+          ? request.resource.data.requestedDivisionName is string && request.resource.data.requestedDivisionId is string
+          : request.resource.data.requestedDivisionName is string && request.resource.data.requestedDivisionId is string && request.resource.data.domUid is string && request.resource.data.domEmpCode is string);
+      allow read: if signedIn() && (request.auth.uid == uid || isZOH());
+      allow update, delete: if isZOH();
+    }
+
+    // Public registration directory contains only approved DOM name, employee code and division.
+    // It exposes no phone, login email, UID credentials or other employee profile fields.
+    match /approvedDomDirectory/{domUid} {
+      allow get, list: if true;
+      allow create, update: if isZOH()
+        && request.resource.data.domUid == domUid
+        && request.resource.data.empCode is string
+        && request.resource.data.displayName is string
+        && request.resource.data.divisionId is string
+        && request.resource.data.divisionName is string
+        && request.resource.data.active == true;
+      allow delete: if isZOH();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isZOH());
+      allow create, update, delete: if isZOH();
+    }
+
+    match /auditLogs/{logId} {
+      allow read, create: if isZOH();
+      allow update, delete: if false;
+    }
+
+    // One consolidated regional report per region and reporting date.
+    // ROM may create/revise only its own region's report. DOM is division read-only.
+    match /dailyReports/{reportId} {
+      allow read: if isZOH()
+        || (isDOM() && resource.data.divisionId == myProfile().divisionId)
+        || (isROM() && resource.data.regionId == myProfile().regionId);
+      allow create: if validReportScope(request.resource.data)
+        && request.resource.data.status == "SUBMITTED"
+        && request.resource.data.reportId == reportId
+        && request.resource.data.date is string
+        && request.resource.data.revision == 1;
+      allow update: if validReportScope(request.resource.data)
+        && resource.data.regionId == myProfile().regionId
+        && resource.data.divisionId == myProfile().divisionId
+        && request.resource.data.reportId == resource.data.reportId
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.romUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // No other collections are accessible until explicit rules are designed and tested.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
